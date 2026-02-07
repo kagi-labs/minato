@@ -28,3 +28,4 @@ The "Live" component.
 
 ## 4. Security
 - Every command must be verified against the **MCP Firewall** before execution.
+\n## Review Needed
