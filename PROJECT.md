@@ -1,25 +1,22 @@
 # Project Minato (The Agent Orchestrator) ⚓
 
 ## Overview
-Project Minato is the central **Orchestration and Communication Hub** for the Kagi Labs ecosystem. It acts as the "Command Deck" where the user provides orders and Minato orchestrates how those orders are routed to various delegation engines.
-
-## Core Mission
-To provide a unified orchestration layer that coordinates agents and sessions. It manages the human-in-the-loop experience through multiple channels (Discord, Telegram, Web) and ensures that delegated tasks are tracked from start to finish.
+Project Minato is the central **Orchestration and Communication Hub**. It lives on the **Client Side** (e.g., your laptop or local server) and acts as the bridge between user channels and technical delegation engines.
 
 ## Key Features
-- **Central Orchestration:** Routes user orders to the appropriate worker (e.g., Hashi).
-- **Universal Channel Layer:** Only component responsible for external messaging.
-- **Session Coordination:** Manages real-time data streaming and multi-agent collaboration.
-- **Persistent Storage:** Integrated with **Project Kura** for global state.
+- **Central Orchestration:** Receives orders from User Channels and routes them locally.
+- **Unified Channel Layer:** Only component responsible for external messaging (Discord, Telegram, Web UI).
+- **Session Coordination:** Manages real-time data streaming.
+- **Local-First Storage:** Integrated with **Project Kura** for local-first persistent state.
 
 ## Architecture
-Minato sits at the top of the hierarchy, giving orders to Hashi and receiving security feedback from Aegis.
+Minato sits on the user's machine, coordinating local workers like Hashi.
 
-\`\`\`mermaid
+```mermaid
 graph TD
     User[User / Discord / Telegram] -->|Orders| Minato
-    Minato -->|Delegate Task| Hashi[Hashi Delegation Engine]
+    Minato <-->|Local Protocol| Hashi[Hashi Delegation Engine]
     Hashi -->|Tool Call| Aegis[Aegis Security]
-    Aegis -->|Approval Req| Minato
-    Minato -->|UI Prompt| User
-\`\`\`
+    Aegis -.->|Approval Req| Minato
+    Minato <--> Kura[Kura Local Store]
+```
