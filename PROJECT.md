@@ -1,23 +1,24 @@
-# Sora-Link (The Remote Controller)
+# Project Minato (The Remote Controller) ⚓
 
 ## Overview
-Sora-Link is a standalone orchestrator designed to provide remote CLI access and real-time streaming via external channels (Telegram, Vault, etc.). It allows Player 1 to execute commands on the host from anywhere and see the output live.
+**Project Minato** (formerly Sora-Link) is a standalone orchestrator designed to provide remote CLI access and real-time streaming via external channels (Telegram, Discord, Vault, etc.). It acts as the "Harbor" for all remote session data and coordination.
 
 ## Goals
-- **Channel Autonomy:** We build our own handlers for Telegram, Discord, and Filesystem watchers.
-- **Multi-Session Management:** Support multiple concurrent sessions with the ability to switch context easily.
-- **Live Streaming:** Stream stdout/stderr directly back to the triggering channel.
-- **Vault Integration:** Organized session folders for persistence and manual inspection.
-- **Secure Execution:** Use the MCP Firewall and Policy Engine for safety.
+- **Channel Autonomy:** Robust handlers for Telegram, Discord, and Filesystem watchers.
+- **Universal Communication Bus:** Support existing bot channels to ensure a unified experience across different platforms.
+- **Multi-Session Management:** Handle multiple concurrent sessions with efficient context switching.
+- **Live Streaming:** Real-time stdout/stderr streaming directly back to the triggering channel.
+- **Vault Integration:** Organized session data in Project Kura for persistence and manual inspection.
+- **Secure Execution:** Integrated with **Project Aegis** for safety and human-in-the-loop approvals.
 
 ## Planned Components
-- `internal/channel`: Custom implementation for Telegram/Filesystem.
-- `internal/session`: Tracks active sessions, metadata, and context switching.
-- `internal/engine`: Orchestrates the "expect message -> run cmd -> return" loop.
-- `internal/stream`: Handles the real-time pipe from process to channel.
+- \`internal/channel\`: Native implementation for Discord/Telegram/Filesystem.
+- \`internal/session\`: Lifecycle management for active sessions and metadata.
+- \`internal/engine\`: The core loop orchestrating commands and channel routing.
+- \`internal/stream\`: Real-time data piping between processes and user channels.
 
 ## Status
-- [x] Initial Repo Structure Created
-- [x] Architecture Design (Multi-Session Update)
-- [ ] Channel Prototype (Telegram)
+- [x] Initial Repo Structure Created (Renamed to Minato)
+- [x] Architecture Design (Multi-Session & Universal Bus Update)
+- [ ] Channel Prototype (Discord/Telegram)
 - [ ] Session Context Switching Logic
