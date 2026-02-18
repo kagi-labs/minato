@@ -1,23 +1,22 @@
-# Sora-Link (The Remote Controller)
+# Project Minato (The Agent Orchestrator) ⚓
 
 ## Overview
-Sora-Link is a standalone orchestrator designed to provide remote CLI access and real-time streaming via external channels (Telegram, Vault, etc.). It allows Player 1 to execute commands on the host from anywhere and see the output live.
+Project Minato is the central **Orchestration and Communication Hub**. It lives on the **Client Side** (e.g., your laptop or local server) and acts as the bridge between user channels and technical delegation engines.
 
-## Goals
-- **Channel Autonomy:** We build our own handlers for Telegram, Discord, and Filesystem watchers.
-- **Multi-Session Management:** Support multiple concurrent sessions with the ability to switch context easily.
-- **Live Streaming:** Stream stdout/stderr directly back to the triggering channel.
-- **Vault Integration:** Organized session folders for persistence and manual inspection.
-- **Secure Execution:** Use the MCP Firewall and Policy Engine for safety.
+## Key Features
+- **Central Orchestration:** Receives orders from User Channels and routes them locally.
+- **Unified Channel Layer:** Only component responsible for external messaging (Discord, Telegram, Web UI).
+- **Session Coordination:** Manages real-time data streaming.
+- **Local-First Storage:** Integrated with **Project Kura** for local-first persistent state.
 
-## Planned Components
-- `internal/channel`: Custom implementation for Telegram/Filesystem.
-- `internal/session`: Tracks active sessions, metadata, and context switching.
-- `internal/engine`: Orchestrates the "expect message -> run cmd -> return" loop.
-- `internal/stream`: Handles the real-time pipe from process to channel.
+## Architecture
+Minato sits on the user's machine, coordinating local workers like Hashi.
 
-## Status
-- [x] Initial Repo Structure Created
-- [x] Architecture Design (Multi-Session Update)
-- [ ] Channel Prototype (Telegram)
-- [ ] Session Context Switching Logic
+```mermaid
+graph TD
+    User[User / Discord / Telegram] -->|Orders| Minato
+    Minato <-->|Local Protocol| Hashi[Hashi Delegation Engine]
+    Hashi -->|Tool Call| Aegis[Aegis Security]
+    Aegis -.->|Approval Req| Minato
+    Minato <--> Kura[Kura Local Store]
+```

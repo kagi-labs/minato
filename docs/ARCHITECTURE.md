@@ -1,4 +1,4 @@
-# Sora-Link Architecture
+# Minato Architecture
 
 ## Overview
 
@@ -38,6 +38,7 @@ graph TD
     Channel -->|Live Reply| User
 ```
 
+<<<<<<< HEAD
 **Detailed Flow:**
 1. User sends a message or file to the Telegram bot (or drops a file into a Vault session folder).
 2. The Channel Layer receives the event and passes it to the Auth Gate.
