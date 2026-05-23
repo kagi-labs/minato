@@ -2,25 +2,25 @@
 
 ## Overview
 
-Sora-Link ("Sky Link") is a standalone remote CLI orchestrator written in Go. It provides
-real-time, bidirectional access to CLI tools on the host machine via external channels
-(Telegram, filesystem). It enables a user to execute commands from anywhere, see output
+Minato ("Harbor") is a standalone remote CLI orchestrator written in Go. It provides
+real-time, bidirectional access to local agents and CLI tools via external channels
+(Telegram, filesystem, and future adapters). It enables a user to execute commands from anywhere, see output
 streamed live, and manage multiple concurrent sessions.
 
 **Core Principles:**
-- The user sends a message via Telegram. Sora-Link executes it on the host. Output streams back live.
+- The user sends a message via Telegram. Minato executes it on the host. Output streams back live.
 - Multiple sessions can run concurrently. The user switches context to follow different tasks.
-- All command execution is gated through the MCP Firewall for safety.
+- All command execution is gated through Aegis for safety.
 - Session state persists to the Vault (filesystem) for inspection and continuity.
 
 **Integration Points:**
-- **MCP Firewall:** Every command Sora-Link executes is wrapped through `mcp-firewall run --`
-  before spawning. The firewall's policy engine and approval flow apply. If the firewall's
+- **Aegis:** Every command Minato executes is mediated through Aegis, initially via `aegis run --`
+  before spawning. Aegis's policy engine and approval flow apply. If the Aegis
   approval adapter is set to Telegram, approval prompts appear in the same chat as the
   command output, creating a seamless experience.
-- **Hashi:** When Hashi runs in headless mode, it routes notifications to Sora-Link's Channel
-  Layer via a Unix socket. Sora-Link delivers these to the user's Telegram chat. Hashi can
-  also be invoked as a CLI tool from within a Sora-Link session (`/run hashi <task>`).
+- **Hashi:** When Hashi runs in headless mode, it routes notifications to Minato's Channel
+  Layer via a Unix socket. Minato delivers these to the user's Telegram chat. Hashi can
+  also be invoked as a CLI tool from within a Minato session (`/run hashi <task>`).
 
 ## The Loop
 
@@ -29,8 +29,8 @@ graph TD
     User((User)) -->|Message/File| Channel[Channel Layer]
     Channel -->|Event| Auth[Auth Gate]
     Auth -->|Verified| SessionMgr[Session Manager]
-    SessionMgr -->|Active Context| Engine[Sora Engine]
-    Engine -->|Policy Check| Firewall[MCP Firewall]
+    SessionMgr -->|Active Context| Engine[Minato Engine]
+    Engine -->|Policy Check| Firewall[Aegis]
     Firewall -->|Approved| CLI[Target CLI]
     CLI -->|Stdout/Stderr| Streamer[Streamer]
     Streamer -->|Chunked Output| Chunker[Message Chunker]
@@ -38,14 +38,13 @@ graph TD
     Channel -->|Live Reply| User
 ```
 
-<<<<<<< HEAD
 **Detailed Flow:**
 1. User sends a message or file to the Telegram bot (or drops a file into a Vault session folder).
 2. The Channel Layer receives the event and passes it to the Auth Gate.
 3. The Auth Gate verifies the sender is authorized (Telegram user ID allowlist).
 4. The Session Manager resolves the active session for this channel and prepares the execution context.
-5. The Sora Engine parses the command, resolves the target CLI, and prepares the environment.
-6. The command is dispatched through the MCP Firewall for policy evaluation and approval.
+5. The Minato Engine parses the command, resolves the target CLI, and prepares the environment.
+6. The command is dispatched through Aegis for policy evaluation and approval.
 7. On approval, the CLI process is spawned. Its stdout and stderr are captured by the Streamer.
 8. The Streamer sends output in real-time to the Message Chunker.
 9. The Message Chunker respects Telegram API limits and delivers formatted output to the Channel Layer.
@@ -56,7 +55,7 @@ graph TD
 ```
 /
 ├── cmd/
-│   └── sora-link/
+│   └── minato/
 │       └── main.go                 # Entry point, signal handling, graceful shutdown
 ├── internal/
 │   ├── channel/                    # Channel implementations
@@ -79,10 +78,10 @@ graph TD
 │   │   ├── streamer.go             # io.Pipe-based output capture with backpressure
 │   │   ├── multiplexer.go          # Multi-session stream routing
 │   │   └── buffer.go               # Ring buffer for scrollback
-│   └── firewall/                   # MCP Firewall integration
-│       └── client.go               # Firewall wrapper invocation
+│   └── aegis/                      # Aegis integration
+│       └── client.go               # Aegis wrapper invocation
 ├── configs/
-│   └── sora-link.yaml              # Default configuration
+│   └── minato.yaml              # Default configuration
 ├── docs/
 │   └── ARCHITECTURE.md
 └── tests/
@@ -94,7 +93,7 @@ graph TD
 
 ### 1. Channel Layer (`internal/channel`)
 
-The Channel Layer abstracts the communication medium between the user and Sora-Link.
+The Channel Layer abstracts the communication medium between the user and Minato.
 
 **Channel Interface:**
 ```go
@@ -131,20 +130,20 @@ type OutgoingMessage struct {
 
 **Telegram Rate Limiting:**
 
-Telegram enforces strict rate limits that Sora-Link must respect:
+Telegram enforces strict rate limits that Minato must respect:
 
-| Limit | Value | Sora-Link Handling |
+| Limit | Value | Minato Handling |
 |---|---|---|
 | Messages to same chat | 20/minute (1 per 3 seconds) | Token bucket rate limiter with 3-second minimum interval |
 | Messages to different chats | 30/second | Global rate limiter (unlikely to hit with single-user use) |
 | Message length | 4096 characters | Message Chunker splits output |
 | Caption length | 1024 characters | Truncate with "[truncated]" suffix |
 | File size | 50 MB upload, 20 MB download | Reject oversized files with error message |
-| Editing messages | Same limits as sending | Sora-Link edits the last message for streaming updates |
+| Editing messages | Same limits as sending | Minato edits the last message for streaming updates |
 
 **Streaming Strategy (Telegram):**
 - For short-lived commands (<5 seconds), wait for completion and send final output.
-- For long-running commands, Sora-Link sends an initial "Running..." message and **edits** it
+- For long-running commands, Minato sends an initial "Running..." message and **edits** it
   with updated output every 3 seconds (respecting rate limits).
 - If output exceeds 4096 characters, a new message is sent for the next chunk. The previous
   message is finalized with "[continued below]".
@@ -157,7 +156,7 @@ Telegram enforces strict rate limits that Sora-Link must respect:
 - If a single line exceeds 4000 characters, it is truncated with "...[truncated]".
 
 **Vault-Watch Channel:**
-- Monitors `Vault/Sora/Sessions/` using `fsnotify`.
+- Monitors `Vault/Minato/Sessions/` using `fsnotify`.
 - A file written to `Sessions/<name>/input.txt` triggers the Engine with the file contents as input.
 - Output is written to `Sessions/<name>/output.txt`.
 - **Debouncing:** File events are debounced with a 500ms window to handle partial writes.
@@ -169,7 +168,7 @@ Telegram enforces strict rate limits that Sora-Link must respect:
 **Responsibility:** Verify that incoming messages are from authorized users before processing.
 
 **Implementation:**
-- Telegram user IDs are checked against an allowlist in `sora-link.yaml`.
+- Telegram user IDs are checked against an allowlist in `minato.yaml`.
 - Unauthorized messages receive no response (silent drop) to avoid revealing the bot's existence.
 - Rate limiting: max 10 commands per minute per user. Excess commands are queued, not dropped,
   with a "throttled" notification sent to the user.
@@ -225,7 +224,7 @@ const (
 
 **Persistence (Vault):**
 ```
-Vault/Sora/Sessions/
+Vault/Minato/Sessions/
 ├── project-alpha/
 │   ├── session.json        # Session metadata (ID, name, status, created, env)
 │   ├── input.log           # All commands sent to this session (append-only)
@@ -252,7 +251,7 @@ Vault/Sora/Sessions/
 - **Race: `/kill` arrives while a command is executing.** The kill handler sends SIGTERM to the
   process group, waits 5 seconds, then SIGKILL. The session transitions to `dead`.
 
-### 4. Sora Engine (`internal/engine`)
+### 4. Minato Engine (`internal/engine`)
 
 **Responsibility:** Parse commands, resolve target CLIs, prepare execution environments, and
 manage process lifecycles.
@@ -263,7 +262,7 @@ User input is parsed into a structured command:
 - `/run <command> [args...]`: Execute a shell command in the active session.
 - `/claude <prompt>`: Shortcut for `claude --print "<prompt>"` (Claude Code CLI).
 - `/gh <subcommand>`: Shortcut for GitHub CLI.
-- `/script <name>`: Execute a named script from `~/.sora-link/scripts/`.
+- `/script <name>`: Execute a named script from `~/.minato/scripts/`.
 - Raw text (no `/` prefix): Treated as `/run <text>` by default.
 
 **Command Validation:**
@@ -304,7 +303,7 @@ type ProcessManager struct {
 - **OOM / Crash Detection:** If the process exits with signal 9 (SIGKILL, likely OOM) or a
   non-zero exit code, the Engine includes the exit signal and last 20 lines of stderr in the
   notification to the user.
-- **Interactive Processes:** Some CLIs (like `claude`) expect stdin input. Sora-Link supports
+- **Interactive Processes:** Some CLIs (like `claude`) expect stdin input. Minato supports
   piping the next Telegram message as stdin to the running process. The user sends a message
   while a command is active, and it is written to the process's stdin.
 
@@ -339,26 +338,26 @@ type ProcessManager struct {
 - The ring buffer enables a `/scrollback [n]` command that retrieves the last `n` lines of
   output from the current session without re-executing the command.
 
-### 6. MCP Firewall Integration (`internal/firewall`)
+### 6. Aegis Integration (`internal/aegis`)
 
-**Responsibility:** Wrap every command execution through the MCP Firewall.
+**Responsibility:** Wrap every command execution through Aegis.
 
 **Implementation:**
-- Before spawning a CLI process, the Engine prepends `mcp-firewall run --` to the command.
-- The firewall config path is provided via `sora-link.yaml`.
-- If the firewall binary is not found or not configured, Sora-Link refuses to execute commands
-  and notifies the user: "MCP Firewall not configured. Command execution disabled for safety."
+- Before spawning a CLI process, the Engine prepends `aegis run --` to the command.
+- The firewall config path is provided via `minato.yaml`.
+- If the firewall binary is not found or not configured, Minato refuses to execute commands
+  and notifies the user: "Aegis not configured. Command execution disabled for safety."
 
 **Approval Flow Integration:**
 - When the firewall's approval adapter is Telegram, approval prompts appear in the same chat.
 - The user approves or denies inline, and the command proceeds or is blocked.
-- If the approval adapter is `terminal`, Sora-Link cannot provide approval (there is no
+- If the approval adapter is `terminal`, Minato cannot provide approval (there is no
   terminal). The configuration guide warns against this combination.
 
 ## Configuration
 
 ```yaml
-# configs/sora-link.yaml
+# configs/minato.yaml
 version: "1"
 
 channel:
@@ -370,7 +369,7 @@ channel:
     max_message_length: 4096
   vault:
     enabled: true
-    watch_path: ~/Vault/Sora/Sessions
+    watch_path: ~/Vault/Minato/Sessions
     debounce_ms: 500
 
 auth:
@@ -381,7 +380,7 @@ auth:
     burst: 3
 
 session:
-  vault_path: ~/Vault/Sora/Sessions
+  vault_path: ~/Vault/Minato/Sessions
   default_workdir: ~
   max_concurrent_sessions: 10
   session_idle_timeout: 24h     # Archive idle sessions after 24 hours
@@ -400,7 +399,7 @@ engine:
     - npm
     - npx
     - hashi
-  scripts_dir: ~/.sora-link/scripts
+  scripts_dir: ~/.minato/scripts
 
 stream:
   ring_buffer_size: 65536       # 64KB ring buffer per session
@@ -408,12 +407,12 @@ stream:
 
 firewall:
   enabled: true
-  binary: mcp-firewall
-  config: ~/.mcp-firewall/firewall.yaml
+  binary: aegis
+  config: ~/.aegis/firewall.yaml
 
 logging:
   level: info
-  file: ~/.sora-link/sora-link.log
+  file: ~/.minato/minato.log
   max_size_mb: 50
   max_backups: 3
 ```
@@ -445,8 +444,8 @@ logging:
 | Unauthorized Telegram user | Silent drop, no response |
 | Rate limit exceeded | Queue command, send "throttled" notification |
 | Command not in allowlist | Reject with error message |
-| MCP Firewall not configured | Refuse all commands, notify user |
-| MCP Firewall denies command | Notify user: "Command blocked by firewall policy" |
+| Aegis not configured | Refuse all commands, notify user |
+| Aegis denies command | Notify user: "Command blocked by firewall policy" |
 | CLI process crashes (non-zero exit) | Send exit code + last 20 lines of stderr to user |
 | CLI process hangs (timeout) | SIGTERM, wait 5s, SIGKILL, notify user |
 | CLI process killed by OOM | Detect SIGKILL, notify user with explanation |
@@ -459,13 +458,13 @@ logging:
 | Multiple commands sent rapidly | Queue and execute sequentially per session |
 | `/switch` during active command | Update routing immediately, old command continues in background |
 | `/kill` during active command | SIGTERM to process group, SIGKILL after 5s |
-| Sora-Link shutdown (SIGTERM) | SIGTERM all child processes, wait 10s, SIGKILL stragglers, flush logs |
+| Minato shutdown (SIGTERM) | SIGTERM all child processes, wait 10s, SIGKILL stragglers, flush logs |
 
 ## Graceful Shutdown
 
-Sora-Link listens for `SIGINT` and `SIGTERM`:
+Minato listens for `SIGINT` and `SIGTERM`:
 1. Stop accepting new Telegram updates (stop long polling).
-2. Send "Sora-Link is shutting down" to all active channels.
+2. Send "Minato is shutting down" to all active channels.
 3. Send SIGTERM to all running child processes (via process group).
 4. Wait up to 10 seconds for processes to exit.
 5. SIGKILL any remaining processes.
@@ -480,10 +479,10 @@ Sora-Link listens for `SIGINT` and `SIGTERM`:
   `sh -c`. Shell metacharacters (`|`, `;`, `&&`, `` ` ``) are not interpreted. If the user
   needs shell features, they must explicitly use `/run sh -c "..."`.
 - **Allowlist enforcement:** Only binaries in the `allowed_commands` list can be executed.
-  This is enforced before the MCP Firewall check (defense in depth).
+  This is enforced before the Aegis check (defense in depth).
 - **Secret isolation:** Secrets are injected as environment variables, not logged, and not
   included in Telegram messages. The output streamer redacts known secret patterns.
 - **Process isolation:** Each process runs in its own process group. A runaway process cannot
-  affect Sora-Link's main process.
+  affect Minato's main process.
 - **Telegram bot token protection:** The bot token is loaded from an environment variable,
   never stored in plaintext config files.
